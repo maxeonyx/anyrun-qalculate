@@ -1,0 +1,7 @@
+{
+  "$schema": "https://tdd-ratchet.maxeonyx.com/schema/test-status.v1.json",
+  "tests": {
+    "anyrun-qalculate::anyrun_qalculate$tests::ffi_stub_returns_placeholder_text": "pending"
+  },
+  "baseline": "d2e08ce97436b0fabbcc19ea6545eac79a3a3a5b"
+}
