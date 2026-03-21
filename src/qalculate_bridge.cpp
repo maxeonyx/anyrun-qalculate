@@ -30,7 +30,11 @@ char *copy_string(const std::string &value) {
 } // namespace
 
 extern "C" void *qalculate_new() {
-  return new QalculateHandle();
+  try {
+    return new QalculateHandle();
+  } catch (...) {
+    return nullptr;
+  }
 }
 
 extern "C" void qalculate_free(void *handle) {
@@ -42,15 +46,19 @@ extern "C" char *qalculate_calculate(void *handle, const char *expression) {
     return nullptr;
   }
 
-  auto *qalculate = static_cast<QalculateHandle *>(handle);
-  std::string result = qalculate->calculator.calculateAndPrint(
-      expression, 10000, qalculate->evaluation_options, qalculate->print_options);
+  try {
+    auto *qalculate = static_cast<QalculateHandle *>(handle);
+    std::string result = qalculate->calculator.calculateAndPrint(
+        expression, 10000, qalculate->evaluation_options, qalculate->print_options);
 
-  if (result.empty()) {
+    if (result.empty()) {
+      return nullptr;
+    }
+
+    return copy_string(result);
+  } catch (...) {
     return nullptr;
   }
-
-  return copy_string(result);
 }
 
 extern "C" void qalculate_free_string(char *value) { std::free(value); }

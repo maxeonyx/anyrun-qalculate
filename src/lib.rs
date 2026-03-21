@@ -7,6 +7,7 @@ use std::fmt::{self, Display};
 use std::fs;
 use std::io;
 use std::os::raw::c_char;
+use std::ptr::NonNull;
 use std::sync::{Arc, Mutex, OnceLock};
 
 #[derive(Debug, Deserialize, PartialEq, Eq)]
@@ -23,12 +24,13 @@ impl Default for Config {
 }
 
 struct State {
-    calculator: Arc<SharedCalculator>,
+    calculator: Result<SharedCalculator, CalculationError>,
     config: Config,
 }
 
-static DEFAULT_CALCULATOR: OnceLock<Result<Arc<SharedCalculator>, CalculationError>> =
-    OnceLock::new();
+type SharedCalculator = Arc<Mutex<CalculatorHandle>>;
+
+static DEFAULT_CALCULATOR: OnceLock<Result<SharedCalculator, CalculationError>> = OnceLock::new();
 #[cfg(test)]
 static TEST_PLUGIN_INIT: OnceLock<()> = OnceLock::new();
 
@@ -77,11 +79,9 @@ impl Display for CalculationError {
 }
 
 struct NativeCalculationResult(*mut c_char);
-struct NativeCalculator(*mut std::ffi::c_void);
+struct CalculatorHandle(NonNull<std::ffi::c_void>);
 
-struct SharedCalculator(Mutex<NativeCalculator>);
-
-unsafe impl Send for NativeCalculator {}
+unsafe impl Send for CalculatorHandle {}
 
 impl NativeCalculationResult {
     fn from_raw(value: *mut c_char) -> Result<Self, CalculationError> {
@@ -108,42 +108,27 @@ impl Drop for NativeCalculationResult {
     }
 }
 
-impl NativeCalculator {
+impl CalculatorHandle {
     fn new() -> Result<Self, CalculationError> {
-        let handle = unsafe { qalculate_new() };
-
-        if handle.is_null() {
-            return Err(CalculationError::NativeHandleInitFailed);
-        }
-
-        Ok(Self(handle))
+        NonNull::new(unsafe { qalculate_new() })
+            .map(Self)
+            .ok_or(CalculationError::NativeHandleInitFailed)
     }
 
     fn calculate(&self, expression: &CString) -> Result<String, CalculationError> {
         let result = NativeCalculationResult::from_raw(unsafe {
-            qalculate_calculate(self.0, expression.as_ptr())
+            qalculate_calculate(self.0.as_ptr(), expression.as_ptr())
         })?;
 
         result.to_owned_string()
     }
 }
 
-impl Drop for NativeCalculator {
+impl Drop for CalculatorHandle {
     fn drop(&mut self) {
         unsafe {
-            qalculate_free(self.0);
+            qalculate_free(self.0.as_ptr());
         }
-    }
-}
-
-impl SharedCalculator {
-    fn new() -> Result<Arc<Self>, CalculationError> {
-        Ok(Arc::new(Self(Mutex::new(NativeCalculator::new()?))))
-    }
-
-    fn calculate(&self, expression: &CString) -> Result<String, CalculationError> {
-        let calculator = self.0.lock().expect("qalculate mutex poisoned");
-        calculator.calculate(expression)
     }
 }
 
@@ -158,7 +143,7 @@ unsafe extern "C" {
 #[init]
 fn init(config_dir: RString) -> State {
     State {
-        calculator: default_calculator().expect("libqalculate should initialize"),
+        calculator: default_calculator(),
         config: load_config(&config_dir),
     }
 }
@@ -177,7 +162,15 @@ fn get_matches(input: RString, state: &State) -> RVec<Match> {
         return RVec::new();
     };
 
-    match calculate_expression_with(&state.calculator, expression) {
+    let calculator = match &state.calculator {
+        Ok(calculator) => calculator,
+        Err(error) => {
+            eprintln!("[qalculate] Failed to initialize calculator: {error}");
+            return RVec::new();
+        }
+    };
+
+    match calculate_expression_with(calculator, expression) {
         Ok(title) => vec![build_match(title)].into(),
         Err(error) => {
             eprintln!("[qalculate] Failed to calculate '{expression}': {error}");
@@ -208,14 +201,14 @@ fn matchable_input<'a>(input: &'a str, config: &Config) -> Option<&'a str> {
         return None;
     }
 
-    if !input_has_calculation_signal(input) {
+    if !looks_like_calculation_input(input) {
         return None;
     }
 
     Some(input)
 }
 
-fn input_has_calculation_signal(input: &str) -> bool {
+fn looks_like_calculation_input(input: &str) -> bool {
     input.chars().any(|ch| {
         ch.is_ascii_digit() || matches!(ch, '+' | '-' | '*' | '/' | '%' | '^' | '=' | '(' | ')')
     })
@@ -257,9 +250,9 @@ fn parse_config(config_path: &str, contents: &str) -> Result<Config, ConfigLoadE
     })
 }
 
-fn default_calculator() -> Result<Arc<SharedCalculator>, CalculationError> {
+fn default_calculator() -> Result<SharedCalculator, CalculationError> {
     DEFAULT_CALCULATOR
-        .get_or_init(SharedCalculator::new)
+        .get_or_init(|| Ok(Arc::new(Mutex::new(CalculatorHandle::new()?))))
         .as_ref()
         .map(Arc::clone)
         .map_err(Clone::clone)
@@ -276,14 +269,15 @@ fn calculate_expression_with(
     calculator: &SharedCalculator,
     expression: &str,
 ) -> Result<String, CalculationError> {
-    let expression = normalize_expression(expression);
+    let expression = normalize_user_expression(expression);
     let expression =
         CString::new(expression.as_ref()).map_err(|_| CalculationError::ExpressionContainsNul)?;
+    let calculator = calculator.lock().expect("qalculate mutex poisoned");
 
     calculator.calculate(&expression)
 }
 
-fn normalize_expression(expression: &str) -> Cow<'_, str> {
+fn normalize_user_expression(expression: &str) -> Cow<'_, str> {
     if expression.contains("% of ") {
         return Cow::Owned(expression.replace("% of ", "%*"));
     }

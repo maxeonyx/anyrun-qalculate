@@ -1,5 +1,7 @@
 fn main() {
-    println!("cargo:rerun-if-changed=src/qalculate_bridge.cpp");
+    let bridge_source = "src/qalculate_bridge.cpp";
+
+    println!("cargo:rerun-if-changed={bridge_source}");
 
     let libqalculate = pkg_config::Config::new()
         .atleast_version("5.9.0")
@@ -9,12 +11,12 @@ fn main() {
     let mut build = cc::Build::new();
     build
         .cpp(true)
-        .file("src/qalculate_bridge.cpp")
+        .file(bridge_source)
         .flag_if_supported("-std=c++17");
 
     for include_path in libqalculate.include_paths {
         build.include(include_path);
     }
 
-    build.compile("qalculate_stub");
+    build.compile("qalculate_bridge");
 }

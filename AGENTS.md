@@ -4,6 +4,8 @@
 
 Anyrun plugin for qalculate — a Rust `cdylib` that links to libqalculate via C++ FFI.
 
+The current bridge uses the real libqalculate API, not a stub. Tests should exercise plugin-facing behavior against the real native library.
+
 ## Development
 
 - **TDD ratchet enforced** — load the `tdd-ratchet` skill. New tests must fail first.

@@ -6,6 +6,10 @@ This project follows strict TDD — see the `tdd-ratchet` skill. Load the `verif
 
 `cargo ratchet` is the canonical test command for this repo. `cargo test` is intentionally blocked by a gatekeeper test unless `TDD_RATCHET=1` is set by the ratchet.
 
+The current plugin uses the real libqalculate C++ API through a thin native bridge. Tests exercise the plugin-facing match flow against the real library, including arithmetic, unit conversion, currency conversion, percentage input, garbage filtering, and hot-path latency.
+
+Input is currently normalized slightly before evaluation to better match user expectations with libqalculate 5.9.0: `in` is translated to `to` for conversions, and `% of` is translated to `%*`.
+
 CI runs in an Arch Linux container so the native libqalculate headers and linker behavior stay close to the local CachyOS development environment.
 
 ## Build
