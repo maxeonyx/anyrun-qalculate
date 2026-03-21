@@ -1,7 +1,9 @@
 use abi_stable::std_types::{ROption, RString, RVec};
 use anyrun_plugin::*;
 use serde::Deserialize;
+use std::ffi::{CStr, CString};
 use std::fs;
+use std::os::raw::c_char;
 
 #[derive(Debug, Deserialize)]
 struct Config {
@@ -18,6 +20,11 @@ impl Default for Config {
 
 struct State {
     config: Config,
+}
+
+unsafe extern "C" {
+    fn qalculate_stub_calculate(expression: *const c_char) -> *mut c_char;
+    fn qalculate_stub_free_string(value: *mut c_char);
 }
 
 #[init]
@@ -74,8 +81,24 @@ fn load_config(config_dir: &str) -> Config {
     }
 }
 
-fn calculate_expression(_expression: &str) -> Option<String> {
-    None
+fn calculate_expression(expression: &str) -> Option<String> {
+    let expression = CString::new(expression).ok()?;
+    let raw_result = unsafe { qalculate_stub_calculate(expression.as_ptr()) };
+
+    if raw_result.is_null() {
+        return None;
+    }
+
+    let result = unsafe { CStr::from_ptr(raw_result) }
+        .to_str()
+        .ok()
+        .map(str::to_owned);
+
+    unsafe {
+        qalculate_stub_free_string(raw_result);
+    }
+
+    result
 }
 
 #[cfg(test)]
