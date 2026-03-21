@@ -1,11 +1,13 @@
 use abi_stable::std_types::{ROption, RString, RVec};
 use anyrun_plugin::*;
 use serde::Deserialize;
+use std::borrow::Cow;
 use std::ffi::{CStr, CString};
 use std::fmt::{self, Display};
 use std::fs;
 use std::io;
 use std::os::raw::c_char;
+use std::sync::{Arc, Mutex, OnceLock};
 
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 struct Config {
@@ -21,8 +23,14 @@ impl Default for Config {
 }
 
 struct State {
+    calculator: Arc<SharedCalculator>,
     config: Config,
 }
+
+static DEFAULT_CALCULATOR: OnceLock<Result<Arc<SharedCalculator>, CalculationError>> =
+    OnceLock::new();
+#[cfg(test)]
+static TEST_PLUGIN_INIT: OnceLock<()> = OnceLock::new();
 
 #[derive(Debug)]
 enum ConfigLoadError {
@@ -49,9 +57,10 @@ impl Display for ConfigLoadError {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum CalculationError {
     ExpressionContainsNul,
+    NativeHandleInitFailed,
     NativeReturnedInvalidUtf8,
     NativeReturnedNull,
 }
@@ -60,6 +69,7 @@ impl Display for CalculationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ExpressionContainsNul => f.write_str("expression contains an interior NUL byte"),
+            Self::NativeHandleInitFailed => f.write_str("failed to initialize libqalculate handle"),
             Self::NativeReturnedInvalidUtf8 => f.write_str("native layer returned invalid UTF-8"),
             Self::NativeReturnedNull => f.write_str("native layer returned a null pointer"),
         }
@@ -67,6 +77,11 @@ impl Display for CalculationError {
 }
 
 struct NativeCalculationResult(*mut c_char);
+struct NativeCalculator(*mut std::ffi::c_void);
+
+struct SharedCalculator(Mutex<NativeCalculator>);
+
+unsafe impl Send for NativeCalculator {}
 
 impl NativeCalculationResult {
     fn from_raw(value: *mut c_char) -> Result<Self, CalculationError> {
@@ -88,19 +103,62 @@ impl NativeCalculationResult {
 impl Drop for NativeCalculationResult {
     fn drop(&mut self) {
         unsafe {
-            qalculate_stub_free_string(self.0);
+            qalculate_free_string(self.0);
         }
     }
 }
 
+impl NativeCalculator {
+    fn new() -> Result<Self, CalculationError> {
+        let handle = unsafe { qalculate_new() };
+
+        if handle.is_null() {
+            return Err(CalculationError::NativeHandleInitFailed);
+        }
+
+        Ok(Self(handle))
+    }
+
+    fn calculate(&self, expression: &CString) -> Result<String, CalculationError> {
+        let result = NativeCalculationResult::from_raw(unsafe {
+            qalculate_calculate(self.0, expression.as_ptr())
+        })?;
+
+        result.to_owned_string()
+    }
+}
+
+impl Drop for NativeCalculator {
+    fn drop(&mut self) {
+        unsafe {
+            qalculate_free(self.0);
+        }
+    }
+}
+
+impl SharedCalculator {
+    fn new() -> Result<Arc<Self>, CalculationError> {
+        Ok(Arc::new(Self(Mutex::new(NativeCalculator::new()?))))
+    }
+
+    fn calculate(&self, expression: &CString) -> Result<String, CalculationError> {
+        let calculator = self.0.lock().expect("qalculate mutex poisoned");
+        calculator.calculate(expression)
+    }
+}
+
 unsafe extern "C" {
-    fn qalculate_stub_calculate(expression: *const c_char) -> *mut c_char;
-    fn qalculate_stub_free_string(value: *mut c_char);
+    fn qalculate_new() -> *mut std::ffi::c_void;
+    fn qalculate_free(handle: *mut std::ffi::c_void);
+    fn qalculate_calculate(handle: *mut std::ffi::c_void, expression: *const c_char)
+        -> *mut c_char;
+    fn qalculate_free_string(value: *mut c_char);
 }
 
 #[init]
 fn init(config_dir: RString) -> State {
     State {
+        calculator: default_calculator().expect("libqalculate should initialize"),
         config: load_config(&config_dir),
     }
 }
@@ -119,7 +177,7 @@ fn get_matches(input: RString, state: &State) -> RVec<Match> {
         return RVec::new();
     };
 
-    match calculate_expression(expression) {
+    match calculate_expression_with(&state.calculator, expression) {
         Ok(title) => vec![build_match(title)].into(),
         Err(error) => {
             eprintln!("[qalculate] Failed to calculate '{expression}': {error}");
@@ -150,7 +208,17 @@ fn matchable_input<'a>(input: &'a str, config: &Config) -> Option<&'a str> {
         return None;
     }
 
+    if !input_has_calculation_signal(input) {
+        return None;
+    }
+
     Some(input)
+}
+
+fn input_has_calculation_signal(input: &str) -> bool {
+    input.chars().any(|ch| {
+        ch.is_ascii_digit() || matches!(ch, '+' | '-' | '*' | '/' | '%' | '^' | '=' | '(' | ')')
+    })
 }
 
 fn load_config(config_dir: &str) -> Config {
@@ -189,28 +257,72 @@ fn parse_config(config_path: &str, contents: &str) -> Result<Config, ConfigLoadE
     })
 }
 
-fn calculate_expression(expression: &str) -> Result<String, CalculationError> {
-    let expression =
-        CString::new(expression).map_err(|_| CalculationError::ExpressionContainsNul)?;
-    let result = NativeCalculationResult::from_raw(unsafe {
-        qalculate_stub_calculate(expression.as_ptr())
-    })?;
+fn default_calculator() -> Result<Arc<SharedCalculator>, CalculationError> {
+    DEFAULT_CALCULATOR
+        .get_or_init(SharedCalculator::new)
+        .as_ref()
+        .map(Arc::clone)
+        .map_err(Clone::clone)
+}
 
-    result.to_owned_string()
+#[cfg(test)]
+fn calculate_expression(expression: &str) -> Result<String, CalculationError> {
+    let calculator = default_calculator()?;
+
+    calculate_expression_with(&calculator, expression)
+}
+
+fn calculate_expression_with(
+    calculator: &SharedCalculator,
+    expression: &str,
+) -> Result<String, CalculationError> {
+    let expression = normalize_expression(expression);
+    let expression =
+        CString::new(expression.as_ref()).map_err(|_| CalculationError::ExpressionContainsNul)?;
+
+    calculator.calculate(&expression)
+}
+
+fn normalize_expression(expression: &str) -> Cow<'_, str> {
+    if expression.contains("% of ") {
+        return Cow::Owned(expression.replace("% of ", "%*"));
+    }
+
+    if expression.contains(" in ") {
+        return Cow::Owned(expression.replace(" in ", " to "));
+    }
+
+    Cow::Borrowed(expression)
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        anyrun_internal_get_matches, anyrun_internal_init, calculate_expression, parse_config,
-        CalculationError, ConfigLoadError,
+        anyrun_internal_get_matches, anyrun_internal_init, calculate_expression,
+        default_calculator, parse_config, CalculationError, ConfigLoadError, TEST_PLUGIN_INIT,
     };
-    use std::thread;
     use std::time::{Duration, Instant};
 
+    fn ensure_plugin_initialized() {
+        TEST_PLUGIN_INIT.get_or_init(|| {
+            let _ = default_calculator();
+            anyrun_internal_init("/tmp/anyrun-qalculate-tests".into());
+
+            let start = Instant::now();
+            while start.elapsed() < Duration::from_secs(2) {
+                if !anyrun_internal_get_matches("1 + 1".into()).is_empty() {
+                    return;
+                }
+
+                std::thread::sleep(Duration::from_millis(10));
+            }
+
+            panic!("timed out waiting for plugin init to finish");
+        });
+    }
+
     fn plugin_matches(input: &str) -> Vec<String> {
-        anyrun_internal_init("/tmp/anyrun-qalculate-tests".into());
-        thread::sleep(Duration::from_millis(20));
+        ensure_plugin_initialized();
 
         anyrun_internal_get_matches(input.into())
             .into_iter()
@@ -220,10 +332,7 @@ mod tests {
 
     #[test]
     fn ffi_stub_returns_placeholder_text() {
-        assert_eq!(
-            calculate_expression("1 + 1").as_deref(),
-            Ok("qalculate stub: 1 + 1")
-        );
+        assert_eq!(calculate_expression("1 + 1").as_deref(), Ok("2"));
     }
 
     #[test]
@@ -298,7 +407,7 @@ mod tests {
 
     #[test]
     fn plugin_returns_a_currency_conversion_result() {
-        let titles = plugin_matches("1 USD in NZD");
+        let titles = plugin_matches("1 usd in nzd");
 
         assert_eq!(titles.len(), 1, "expected one currency-conversion result");
         assert!(

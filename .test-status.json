@@ -4,12 +4,12 @@
     "anyrun-qalculate::anyrun_qalculate$tests::ffi_rejects_interior_nul_with_explicit_error": "passing",
     "anyrun-qalculate::anyrun_qalculate$tests::ffi_stub_returns_placeholder_text": "passing",
     "anyrun-qalculate::anyrun_qalculate$tests::parse_config_reports_invalid_ron": "passing",
-    "anyrun-qalculate::anyrun_qalculate$tests::plugin_converts_units_to_pounds": "pending",
-    "anyrun-qalculate::anyrun_qalculate$tests::plugin_filters_out_empty_and_garbage_input": "pending",
-    "anyrun-qalculate::anyrun_qalculate$tests::plugin_formats_fractional_division_as_a_decimal": "pending",
-    "anyrun-qalculate::anyrun_qalculate$tests::plugin_handles_natural_language_percentages": "pending",
-    "anyrun-qalculate::anyrun_qalculate$tests::plugin_returns_a_currency_conversion_result": "pending",
-    "anyrun-qalculate::anyrun_qalculate$tests::plugin_returns_exact_basic_arithmetic_result_within_latency_budget": "pending",
+    "anyrun-qalculate::anyrun_qalculate$tests::plugin_converts_units_to_pounds": "passing",
+    "anyrun-qalculate::anyrun_qalculate$tests::plugin_filters_out_empty_and_garbage_input": "passing",
+    "anyrun-qalculate::anyrun_qalculate$tests::plugin_formats_fractional_division_as_a_decimal": "passing",
+    "anyrun-qalculate::anyrun_qalculate$tests::plugin_handles_natural_language_percentages": "passing",
+    "anyrun-qalculate::anyrun_qalculate$tests::plugin_returns_a_currency_conversion_result": "passing",
+    "anyrun-qalculate::anyrun_qalculate$tests::plugin_returns_exact_basic_arithmetic_result_within_latency_budget": "passing",
     "anyrun-qalculate::gatekeeper$tdd_ratchet_gatekeeper": "passing"
   },
   "baseline": "d2e08ce97436b0fabbcc19ea6545eac79a3a3a5b"
