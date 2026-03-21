@@ -183,13 +183,15 @@ fn read_config(config_dir: &str) -> Result<Config, ConfigLoadError> {
 }
 
 fn parse_config(config_path: &str, contents: &str) -> Result<Config, ConfigLoadError> {
-    let _ = config_path;
-
-    Ok(ron::from_str(contents).unwrap_or_default())
+    ron::from_str(contents).map_err(|source| ConfigLoadError::Parse {
+        path: config_path.to_string(),
+        source,
+    })
 }
 
 fn calculate_expression(expression: &str) -> Result<String, CalculationError> {
-    let expression = CString::new(expression).map_err(|_| CalculationError::NativeReturnedNull)?;
+    let expression =
+        CString::new(expression).map_err(|_| CalculationError::ExpressionContainsNul)?;
     let result = NativeCalculationResult::from_raw(unsafe {
         qalculate_stub_calculate(expression.as_ptr())
     })?;

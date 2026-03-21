@@ -1,9 +1,9 @@
 {
   "$schema": "https://tdd-ratchet.maxeonyx.com/schema/test-status.v1.json",
   "tests": {
-    "anyrun-qalculate::anyrun_qalculate$tests::ffi_rejects_interior_nul_with_explicit_error": "pending",
+    "anyrun-qalculate::anyrun_qalculate$tests::ffi_rejects_interior_nul_with_explicit_error": "passing",
     "anyrun-qalculate::anyrun_qalculate$tests::ffi_stub_returns_placeholder_text": "passing",
-    "anyrun-qalculate::anyrun_qalculate$tests::parse_config_reports_invalid_ron": "pending",
+    "anyrun-qalculate::anyrun_qalculate$tests::parse_config_reports_invalid_ron": "passing",
     "anyrun-qalculate::gatekeeper$tdd_ratchet_gatekeeper": "passing"
   },
   "baseline": "d2e08ce97436b0fabbcc19ea6545eac79a3a3a5b"
