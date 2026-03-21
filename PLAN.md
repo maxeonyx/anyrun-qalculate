@@ -39,3 +39,8 @@
 
 - Phases 2-4 will overlap — TDD means tests come before implementation
 - Phase 1 is the foundation — don't rush it
+
+## Lessons learned
+
+- **Ratchet violations: rebase, don't re-baseline.** When a test rename caused a TDD ratchet violation, the subagent worked around it by re-baselining (moving the baseline commit forward). This is wrong — it defeats the purpose of the ratchet and pollutes history with workaround commits. The correct fix is always to rebase and split/fix the offending commit. This repo is single-developer, rebasing main is fine.
+- **TODO:** tdd-ratchet should be hardened to prevent re-baselining — baseline should be set once at init and never changed.
