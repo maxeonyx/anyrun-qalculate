@@ -201,7 +201,22 @@ fn calculate_expression(expression: &str) -> Result<String, CalculationError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{calculate_expression, parse_config, CalculationError, ConfigLoadError};
+    use super::{
+        anyrun_internal_get_matches, anyrun_internal_init, calculate_expression, parse_config,
+        CalculationError, ConfigLoadError,
+    };
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    fn plugin_matches(input: &str) -> Vec<String> {
+        anyrun_internal_init("/tmp/anyrun-qalculate-tests".into());
+        thread::sleep(Duration::from_millis(20));
+
+        anyrun_internal_get_matches(input.into())
+            .into_iter()
+            .map(|matched| matched.title.to_string())
+            .collect()
+    }
 
     #[test]
     fn ffi_stub_returns_placeholder_text() {
@@ -227,6 +242,98 @@ mod tests {
                 Err(ConfigLoadError::Parse { .. })
             ),
             "invalid config should surface a parse error"
+        );
+    }
+
+    #[test]
+    fn plugin_returns_exact_basic_arithmetic_result_within_latency_budget() {
+        let _ = plugin_matches("1 + 1");
+
+        let start = Instant::now();
+        let matches = plugin_matches("2 + 2");
+        let elapsed = start.elapsed();
+
+        assert_eq!(matches.len(), 1, "expected one arithmetic result");
+        assert_eq!(matches[0], "4");
+        assert!(
+            elapsed < Duration::from_millis(50),
+            "expected a hot calculation in under 50ms, got {:?}",
+            elapsed
+        );
+    }
+
+    #[test]
+    fn plugin_formats_fractional_division_as_a_decimal() {
+        let titles = plugin_matches("10 / 3");
+
+        assert_eq!(titles.len(), 1, "expected one division result");
+        assert!(
+            titles[0].contains('.'),
+            "expected decimal output, got {:?}",
+            titles[0]
+        );
+        assert!(
+            titles[0].starts_with("3."),
+            "expected 3.x output, got {:?}",
+            titles[0]
+        );
+    }
+
+    #[test]
+    fn plugin_converts_units_to_pounds() {
+        let titles = plugin_matches("5 kg to lbs");
+
+        assert_eq!(titles.len(), 1, "expected one unit-conversion result");
+        assert!(
+            titles[0].contains("11"),
+            "expected pounds magnitude in result, got {:?}",
+            titles[0]
+        );
+        assert!(
+            titles[0].contains("lb"),
+            "expected pound unit in result, got {:?}",
+            titles[0]
+        );
+    }
+
+    #[test]
+    fn plugin_returns_a_currency_conversion_result() {
+        let titles = plugin_matches("1 USD in NZD");
+
+        assert_eq!(titles.len(), 1, "expected one currency-conversion result");
+        assert!(
+            !titles[0].trim().is_empty(),
+            "expected non-empty currency output"
+        );
+        assert!(
+            titles[0].contains("NZD"),
+            "expected NZD in result, got {:?}",
+            titles[0]
+        );
+        assert!(
+            !titles[0].contains("USD in NZD"),
+            "expected computed output rather than echoed expression, got {:?}",
+            titles[0]
+        );
+    }
+
+    #[test]
+    fn plugin_handles_natural_language_percentages() {
+        let titles = plugin_matches("20% of 500");
+
+        assert_eq!(titles.len(), 1, "expected one percentage result");
+        assert_eq!(titles[0], "100");
+    }
+
+    #[test]
+    fn plugin_filters_out_empty_and_garbage_input() {
+        assert!(
+            plugin_matches("").is_empty(),
+            "expected no result for empty input"
+        );
+        assert!(
+            plugin_matches("asdfghjkl").is_empty(),
+            "expected no result for garbage input"
         );
     }
 }
