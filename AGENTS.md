@@ -15,7 +15,7 @@ Anyrun plugin for qalculate — a Rust `cdylib` that links to libqalculate via C
 ## Build & Test
 
 ```bash
-pacman -S libqalculate   # runtime + build dep (headers + .so)
+pacman -S libqalculate pkgconf gcc   # runtime + build deps (headers, pkg-config, C++ compiler)
 cargo build --release     # produces target/release/libanyrun_qalculate.so
 cargo ratchet             # canonical test command; cargo test is gatekept
 ```

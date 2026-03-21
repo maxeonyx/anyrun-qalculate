@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:base-devel
+
+    steps:
+      - name: Install system dependencies
+        run: pacman -Syu --noconfirm git rust pkgconf gcc libqalculate cargo-nextest
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install cargo-ratchet
+        run: cargo install tdd-ratchet --locked
+
+      - name: Build release plugin
+        run: cargo build --release
+
+      - name: Run ratchet
+        run: cargo ratchet
