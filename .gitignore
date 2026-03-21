@@ -1,1 +1,6 @@
 /target
+/pkg/
+/src/anyrun-qalculate/
+/anyrun-qalculate/
+/*.pkg.tar.*
+/*.src.tar.*
