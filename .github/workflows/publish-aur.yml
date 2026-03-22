@@ -26,6 +26,10 @@ jobs:
         env:
           AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
         run: |
+          if [ -z "$AUR_SSH_KEY" ]; then
+            printf 'AUR_SSH_KEY secret is not configured; cannot publish to AUR\n' >&2
+            exit 1
+          fi
           install -d -m 700 ~/.ssh
           printf '%s\n' "$AUR_SSH_KEY" > ~/.ssh/aur
           chmod 600 ~/.ssh/aur

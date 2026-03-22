@@ -20,7 +20,7 @@ Requires `libqalculate`, `pkgconf`, a C++ compiler, and Rust toolchain.
 pacman -S libqalculate pkgconf gcc  # provides libqalculate.so, headers, pkg-config, and C++ compiler
 cargo build --release
 cargo ratchet
-cp target/release/libanyrun_qalculate.so ~/.config/anyrun/plugins/
+sudo install -Dm755 target/release/libanyrun_qalculate.so /usr/lib/anyrun/libanyrun_qalculate.so
 ```
 
 ## CI
@@ -30,11 +30,14 @@ GitHub Actions mirrors the local feedback loop:
 ```bash
 cargo build --release
 cargo ratchet
+makepkg -f
 ```
 
 
 ## Install from AUR
 
 ```bash
-paru -S anyrun-qalculate
+paru -S anyrun-qalculate-git
 ```
+
+The package installs `libanyrun_qalculate.so` to `/usr/lib/anyrun/`, alongside anyrun's bundled plugins.
