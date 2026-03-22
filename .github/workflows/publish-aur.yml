@@ -19,8 +19,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Trust checked out workspace
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Create build user
+        run: |
+          useradd --create-home --shell /bin/bash builduser
+          chown -R builduser:builduser "$GITHUB_WORKSPACE"
 
       - name: Configure SSH for AUR
         env:
@@ -51,9 +53,8 @@ jobs:
         run: |
           workdir=$(mktemp -d)
           cp PKGBUILD "$workdir/PKGBUILD"
-          cd "$workdir"
-          makepkg --nobuild --nodeps
-          makepkg --printsrcinfo > .SRCINFO
+          chown -R builduser:builduser "$workdir"
+          runuser -u builduser -- bash -lc 'cd "$1" && makepkg --nobuild --nodeps && makepkg --printsrcinfo > .SRCINFO' -- "$workdir"
           git clone ssh://aur@aur.archlinux.org/anyrun-qalculate-git.git aur
           install -Dm644 "$workdir/PKGBUILD" aur/PKGBUILD
           install -Dm644 "$workdir/.SRCINFO" aur/.SRCINFO
