@@ -1,38 +1,25 @@
 # anyrun-qalculate
 
-Anyrun plugin providing a qalculate-powered calculator via libqalculate C++ FFI.
+An anyrun calculator plugin powered by libqalculate via a native C++ FFI bridge.
 
-This project follows strict TDD — see the `tdd-ratchet` skill. Load the `verifying-work` skill before implementing.
+`anyrun-qalculate` brings fast, flexible calculator results into anyrun without shelling out or requiring a prefix by default.
 
-`cargo ratchet` is the canonical test command for this repo. `cargo test` is intentionally blocked by a gatekeeper test unless `TDD_RATCHET=1` is set by the ratchet.
+## What it does
 
-The current plugin uses the real libqalculate C++ API through a thin native bridge. Tests exercise the plugin-facing match flow against the real library, including arithmetic, unit conversion, currency conversion, percentage input, garbage filtering, and hot-path latency.
+- Natural expressions like `2 + 2`
+- Case-insensitive currency conversion like `1 usd in nzd`
+- Natural percentage input like `20% of 500`
+- Unit conversion like `5 kg to lbs`
+- Sub-millisecond hot-path calculations via direct libqalculate FFI
 
-Input is currently normalized slightly before evaluation to better match user expectations with libqalculate 5.9.0: `in` is translated to `to` for conversions, and `% of` is translated to `%*`.
+Example expressions:
 
-CI runs in an Arch Linux container so the native libqalculate headers and linker behavior stay close to the local CachyOS development environment.
-
-## Build
-
-Requires `libqalculate`, `pkgconf`, a C++ compiler, and Rust toolchain.
-
-```bash
-pacman -S libqalculate pkgconf gcc  # provides libqalculate.so, headers, pkg-config, and C++ compiler
-cargo build --release
-cargo ratchet
-sudo install -Dm755 target/release/libanyrun_qalculate.so /usr/lib/anyrun/libanyrun_qalculate.so
+```text
+2 + 2
+1 usd in nzd
+20% of 500
+5 kg to lbs
 ```
-
-## CI
-
-GitHub Actions mirrors the local feedback loop:
-
-```bash
-cargo build --release
-cargo ratchet
-makepkg -f
-```
-
 
 ## Install from AUR
 
@@ -40,6 +27,44 @@ makepkg -f
 paru -S anyrun-qalculate-git
 ```
 
-The package installs `libanyrun_qalculate.so` to `/usr/lib/anyrun/`, alongside anyrun's bundled plugins.
+AUR package: https://aur.archlinux.org/packages/anyrun-qalculate-git
 
-To manually update the AUR package metadata for this `-git` package, regenerate `.SRCINFO` after `makepkg --nobuild --nodeps`, then push only `PKGBUILD` and `.SRCINFO` to `ssh://aur@aur.archlinux.org/anyrun-qalculate-git.git`.
+The package installs `libanyrun_qalculate.so` to `/usr/lib/anyrun/` alongside anyrun's other plugins.
+
+## Configuration
+
+Add the plugin to your anyrun config, typically `~/.config/anyrun/config.ron`:
+
+```ron
+Config(
+  plugins: [
+    "libapplications.so",
+    "libanyrun_qalculate.so",
+  ],
+)
+```
+
+By default, calculations appear without a prefix. If you want one, create `~/.config/anyrun/qalculate.ron`:
+
+```ron
+(prefix: "=")
+```
+
+With that config, queries must start with `=` such as `= 2 + 2`.
+
+## Build from source
+
+Requires `libqalculate`, `pkgconf`, `gcc`, and a Rust toolchain.
+
+```bash
+pacman -S libqalculate pkgconf gcc
+cargo build --release
+cargo ratchet
+sudo install -Dm755 target/release/libanyrun_qalculate.so /usr/lib/anyrun/libanyrun_qalculate.so
+```
+
+`cargo ratchet` is the canonical test command for this repo.
+
+## Development notes
+
+The plugin uses the real libqalculate API through a thin native bridge, with tests covering plugin-facing behavior against the real library. Input is lightly normalized so `in` maps to `to` for conversions and `% of` maps to `%*` for percentage expressions.
