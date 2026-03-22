@@ -38,22 +38,7 @@
 - Replaced `librink.so` in anyrun config
 - User confirmed working!
 
-## Remaining work
-
-### Post-packaging cleanup (in progress)
-Subagent `ses_2f1690af3ffeLCHpZQIujdh62v` has a cleanup plan ready, needs go-ahead:
-- Add CI packaging smoke test (makepkg + readelf assertion to catch LTO-style regressions)
-- Update README.md with correct AUR install instructions
-- Update AGENTS.md with packaging knowledge (!lto, .SRCINFO generation)
-- Clean up leftover build artifacts and temp AUR clone dirs
-- Guard publish-aur.yml for missing AUR_SSH_KEY secret
-
-### AUR_SSH_KEY GitHub secret
-- The publish-aur.yml workflow needs an `AUR_SSH_KEY` secret to push to AUR
-- Need to generate a dedicated SSH keypair, add public key to AUR account, add private key as GitHub secret
-- Not yet done
-
-### Future improvements
+## Future improvements
 - Lower-case currency support: `1 usd in nzd` (currently works via normalization, but worth verifying edge cases)
 - Consider `USD 1 in NZD` word order (the rink failure that motivated this project)
 - Pango markup support (non-goal for now per TASK-build.ignore.md)
