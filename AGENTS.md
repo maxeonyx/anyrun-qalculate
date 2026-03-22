@@ -12,7 +12,7 @@ The current bridge uses the real libqalculate API, not a stub. Tests should exer
 - **Verification first** — load the `verifying-work` skill. Plan how you'll verify before implementing.
 - **Code principles** — load the `code-principles` skill. Fail fast, side effects at edges.
 - **Shell** is fish. Use `$status` not `$?` for exit codes in tb commands.
-- **tmux-bridge** session `tb-bjq` — root shell for sudo operations. Load the `tmux-bridge` skill.
+- **tmux-bridge** — start a session for sudo operations. Load the `tmux-bridge` skill.
 
 ## Build & Test
 
