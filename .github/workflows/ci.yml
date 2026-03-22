@@ -35,4 +35,4 @@ jobs:
 
       - name: Verify AUR package links native dependencies
         run: |
-          runuser -u builduser -- bash -lc 'cd "$GITHUB_WORKSPACE" && rm -rf pkg src/anyrun-qalculate anyrun-qalculate && cargo clean && makepkg -f --noconfirm && readelf -d pkg/anyrun-qalculate-git/usr/lib/anyrun/libanyrun_qalculate.so | grep "Shared library: \[libqalculate.so.23\]" && readelf -d pkg/anyrun-qalculate-git/usr/lib/anyrun/libanyrun_qalculate.so | grep "Shared library: \[libstdc++.so.6\]"'
+          runuser -u builduser -- bash -lc 'cd "$GITHUB_WORKSPACE" && rm -rf pkg src/anyrun-qalculate anyrun-qalculate && cargo clean && makepkg -f --nodeps --noconfirm && readelf -d pkg/anyrun-qalculate-git/usr/lib/anyrun/libanyrun_qalculate.so | grep "Shared library: \[libqalculate.so.23\]" && readelf -d pkg/anyrun-qalculate-git/usr/lib/anyrun/libanyrun_qalculate.so | grep "Shared library: \[libstdc++.so.6\]"'
