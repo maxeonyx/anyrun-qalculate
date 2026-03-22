@@ -41,3 +41,5 @@ paru -S anyrun-qalculate-git
 ```
 
 The package installs `libanyrun_qalculate.so` to `/usr/lib/anyrun/`, alongside anyrun's bundled plugins.
+
+To manually update the AUR package metadata for this `-git` package, regenerate `.SRCINFO` after `makepkg --nobuild --nodeps`, then push only `PKGBUILD` and `.SRCINFO` to `ssh://aur@aur.archlinux.org/anyrun-qalculate-git.git`.
